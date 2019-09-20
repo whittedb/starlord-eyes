@@ -15,7 +15,6 @@ constexpr auto MAX_BRIGHTNESS = 200;
 
 enum State
 {
-  S_IDLE,
   S_OFF,
   S_ON,
   S_TURN_ON,
@@ -26,7 +25,7 @@ enum State
   S_WAIT_FADE_OFF,
 };
 
-volatile State state = S_IDLE;
+volatile State state = S_OFF;
 //Adafruit_NeoPixel eyes(LED_CNT, DRIVER_PIN, NEO_GRBW);
 CRGB leds[LED_CNT];
 int16_t currentBrightness = 0;
@@ -37,17 +36,14 @@ void debounceButton();
 void setup()
 {
   Serial.begin(9600);
-  delay(2000);  // Wait for NeoPixel Ring to initialize
+  pinMode(ON_OFF_PIN, INPUT_PULLUP);
+
+  delay(2000); // Wait for NeoPixel Ring to initialize
 
   FastLED.addLeds<NEOPIXEL, DRIVER_PIN>(leds, LED_CNT);
-  FastLED.clear();
-  FastLED.setBrightness(0);
   for (int i = 0; i < LED_CNT; ++i) {
     leds[i].setRGB(255, 0, 0);
   }
-  //FastLED.show(0);
-
-  pinMode(ON_OFF_PIN, INPUT_PULLUP);
 
   attachInterrupt(digitalPinToInterrupt(ON_OFF_PIN), debounceButton, FALLING);
 }
@@ -57,19 +53,16 @@ void loop() {
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { s = state; }
   switch (s)
   {
-    case S_IDLE:
     case S_OFF:
     case S_ON:
       break;
 
     case S_TURN_ON:
-      Serial.println("TURN_ON");
       currentBrightness = 0;
       ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_FADE_ON; }
       break;
 
     case S_TURN_OFF:
-      Serial.println("TURN_OFF");
       currentBrightness = MAX_BRIGHTNESS;
       ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_FADE_OFF; }
       break;
@@ -125,12 +118,15 @@ void debounceButton()
   unsigned long interrupt_time = millis();
   // If interrupts come faster than 200ms, assume it's a bounce and ignore
   if (interrupt_time - last_interrupt_time > 200) {
-    if (state == S_ON || state == S_IDLE) {
+    if (state == S_ON) {
       state = S_TURN_OFF;
     } else if (state == S_OFF) {
       state = S_TURN_ON;
+    } else if (state == S_FADE_ON || state == S_WAIT_FADE_ON) {
+      state = S_FADE_OFF;
+    } else if (state == S_FADE_OFF || state == S_WAIT_FADE_OFF) {
+      state = S_FADE_ON;
     }
-    
   }
   last_interrupt_time = interrupt_time;
 }
