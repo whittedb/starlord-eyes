@@ -1,12 +1,15 @@
 #include <Arduino.h>
 #include <util/atomic.h>
-//#include <Adafruit_NeoPixel.h>
 #include <FastLED.h>
+#include "MyTimer.h"
 
 
 constexpr auto LED_CNT = 24;
 constexpr auto DRIVER_PIN = 4;
 constexpr auto ON_OFF_PIN = 2;
+constexpr auto FADE_DELAY = 20;
+constexpr auto FADE_STEP = 2;
+
 
 enum State
 {
@@ -14,17 +17,17 @@ enum State
   S_ON,
   S_TURN_ON,
   S_TURN_OFF,
-/*
   S_FADE_ON,
   S_WAIT_FADE_ON,
   S_FADE_OFF,
   S_WAIT_FADE_OFF,
-*/
 };
 
 volatile State state = S_OFF;
 //Adafruit_NeoPixel eyes(LED_CNT, DRIVER_PIN, NEO_GRBW);
 CRGB leds[LED_CNT];
+int16_t currentBrightness = 0;
+MyTimer timer = MyTimer();
 
 void debounceButton();
 
@@ -34,7 +37,6 @@ void setup()
 
   FastLED.addLeds<NEOPIXEL, DRIVER_PIN>(leds, LED_CNT);
   FastLED.clear(true);
-  FastLED.setBrightness(0);
   for (int i = 0; i < LED_CNT; ++i) {
     leds[i].setRGB(255, 0, 0);
   }
@@ -56,63 +58,55 @@ void loop() {
       break;
 
     case S_TURN_ON:
-//      eyes.fill(eyes.Color(255, 0, 0, 0));
-      FastLED.show(255);
-      ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_ON; }
+      currentBrightness = 0;
+      ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_FADE_ON; }
       break;
 
     case S_TURN_OFF:
-//      eyes.fill(eyes.Color(0, 0, 0, 0));
-      FastLED.show(0);
-      ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_OFF; }
+      currentBrightness = 255;
+      ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_FADE_OFF; }
       break;
-/*
+
     case S_FADE_ON:
-      currentEyePWM =
-        currentEyePWM > MAX_EYE_LEVEL ? MAX_EYE_LEVEL : currentEyePWM;
-      analogWrite(pin, currentEyePWM);
-      state = S_WAIT_FADE_ON;
+      FastLED.show(currentBrightness);
+      ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_WAIT_FADE_ON; }
       timer.start(FADE_DELAY);
       break;
 
     case S_WAIT_FADE_ON:
       if (timer.expired()) {
-        if (currentEyePWM < MAX_EYE_LEVEL) {
-          currentEyePWM += FADE_STEP;
-          state = S_FADE_ON;
+        if (currentBrightness < 255) {
+          currentBrightness += FADE_STEP;
+          if (currentBrightness > 255) {
+            currentBrightness = 255;
+          }
+          ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_FADE_ON; }
         } else {
-          state = S_IDLE;
+          ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_ON; }
         }
       }
       break;
 
     case S_FADE_OFF:
-      currentEyePWM =
-        currentEyePWM < MIN_EYE_LEVEL ? MIN_EYE_LEVEL : currentEyePWM;
-      analogWrite(pin, currentEyePWM);
-      state = S_WAIT_FADE_OFF;
+      FastLED.show(currentBrightness);
+      ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_WAIT_FADE_OFF; }
       timer.start(FADE_DELAY);
       break;
 
     case S_WAIT_FADE_OFF:
       if (timer.expired()) {
-        if (currentEyePWM > MIN_EYE_LEVEL) {
-          currentEyePWM -= FADE_STEP;
-          state = S_FADE_OFF;
-        } else {
-          DEBUG_PRINTLN("Eye dim done....");
-          analogWrite(pin, 0);
-          if (systemShuttingDown) {
-            systemShuttingDown = false;
-            firstTime = true;
-            state = S_OFF;
-          } else {
-            state = S_IDLE;
+        if (currentBrightness > 0) {
+          currentBrightness -= FADE_STEP;
+          if (currentBrightness < 0) {
+            currentBrightness = 0;
           }
+          ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_FADE_OFF; }
+        } else {
+          ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_OFF; }
         }
       }
       break;
-*/
+
     default:
       break;
   }
