@@ -4,7 +4,7 @@
 #include "MyTimer.h"
 
 
-constexpr auto LED_CNT = 12;
+constexpr auto LED_CNT = 24;
 constexpr auto DRIVER_PIN = 4;
 constexpr auto ON_OFF_PIN = 2;
 constexpr auto FADE_ON_DELAY = 10;
@@ -40,15 +40,13 @@ void setup()
   delay(2000);  // Wait for NeoPixel Ring to initialize
 
   FastLED.addLeds<NEOPIXEL, DRIVER_PIN>(leds, LED_CNT);
-  FastLED.clear(true);
+  FastLED.clear();
+  FastLED.setBrightness(0);
   for (int i = 0; i < LED_CNT; ++i) {
     leds[i].setRGB(255, 0, 0);
   }
-  /*
-    eyes.begin();            // INITIALIZE NeoPixel strip object (REQUIRED)
-    eyes.show();             // Turn OFF all pixels ASAP
-    eyes.setBrightness(128); // Set BRIGHTNESS (max = 255)
-  */
+  //FastLED.show(0);
+
   pinMode(ON_OFF_PIN, INPUT_PULLUP);
 
   attachInterrupt(digitalPinToInterrupt(ON_OFF_PIN), debounceButton, FALLING);
@@ -60,14 +58,8 @@ void loop() {
   switch (s)
   {
     case S_IDLE:
-      break;
-
     case S_OFF:
-      //Serial.println("OFF");
-      break;
-
     case S_ON:
-      //Serial.println("ON");
       break;
 
     case S_TURN_ON:
