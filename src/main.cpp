@@ -35,7 +35,6 @@ void debounceButton();
 
 void setup()
 {
-  Serial.begin(9600);
   pinMode(ON_OFF_PIN, INPUT_PULLUP);
 
   delay(2000); // Wait for NeoPixel Ring to initialize
