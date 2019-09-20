@@ -4,15 +4,18 @@
 #include "MyTimer.h"
 
 
-constexpr auto LED_CNT = 24;
+constexpr auto LED_CNT = 12;
 constexpr auto DRIVER_PIN = 4;
 constexpr auto ON_OFF_PIN = 2;
-constexpr auto FADE_DELAY = 20;
-constexpr auto FADE_STEP = 2;
-
+constexpr auto FADE_ON_DELAY = 10;
+constexpr auto FADE_ON_STEP = 1;
+constexpr auto FADE_OFF_DELAY = 20;
+constexpr auto FADE_OFF_STEP = 3;
+constexpr auto MAX_BRIGHTNESS = 200;
 
 enum State
 {
+  S_IDLE,
   S_OFF,
   S_ON,
   S_TURN_ON,
@@ -23,7 +26,7 @@ enum State
   S_WAIT_FADE_OFF,
 };
 
-volatile State state = S_OFF;
+volatile State state = S_IDLE;
 //Adafruit_NeoPixel eyes(LED_CNT, DRIVER_PIN, NEO_GRBW);
 CRGB leds[LED_CNT];
 int16_t currentBrightness = 0;
@@ -33,6 +36,7 @@ void debounceButton();
 
 void setup()
 {
+  Serial.begin(9600);
   delay(2000);  // Wait for NeoPixel Ring to initialize
 
   FastLED.addLeds<NEOPIXEL, DRIVER_PIN>(leds, LED_CNT);
@@ -51,34 +55,45 @@ void setup()
 }
 
 void loop() {
-  switch (state)
+  State s;
+  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { s = state; }
+  switch (s)
   {
+    case S_IDLE:
+      break;
+
     case S_OFF:
+      //Serial.println("OFF");
+      break;
+
     case S_ON:
+      //Serial.println("ON");
       break;
 
     case S_TURN_ON:
+      Serial.println("TURN_ON");
       currentBrightness = 0;
       ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_FADE_ON; }
       break;
 
     case S_TURN_OFF:
-      currentBrightness = 255;
+      Serial.println("TURN_OFF");
+      currentBrightness = MAX_BRIGHTNESS;
       ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_FADE_OFF; }
       break;
 
     case S_FADE_ON:
       FastLED.show(currentBrightness);
       ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_WAIT_FADE_ON; }
-      timer.start(FADE_DELAY);
+      timer.start(FADE_ON_DELAY);
       break;
 
     case S_WAIT_FADE_ON:
       if (timer.expired()) {
-        if (currentBrightness < 255) {
-          currentBrightness += FADE_STEP;
-          if (currentBrightness > 255) {
-            currentBrightness = 255;
+        if (currentBrightness < MAX_BRIGHTNESS) {
+          currentBrightness += FADE_ON_STEP;
+          if (currentBrightness > MAX_BRIGHTNESS) {
+            currentBrightness = MAX_BRIGHTNESS;
           }
           ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_FADE_ON; }
         } else {
@@ -90,13 +105,13 @@ void loop() {
     case S_FADE_OFF:
       FastLED.show(currentBrightness);
       ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_WAIT_FADE_OFF; }
-      timer.start(FADE_DELAY);
+      timer.start(FADE_OFF_DELAY);
       break;
 
     case S_WAIT_FADE_OFF:
       if (timer.expired()) {
         if (currentBrightness > 0) {
-          currentBrightness -= FADE_STEP;
+          currentBrightness -= FADE_OFF_STEP;
           if (currentBrightness < 0) {
             currentBrightness = 0;
           }
@@ -118,7 +133,7 @@ void debounceButton()
   unsigned long interrupt_time = millis();
   // If interrupts come faster than 200ms, assume it's a bounce and ignore
   if (interrupt_time - last_interrupt_time > 200) {
-    if (state == S_ON) {
+    if (state == S_ON || state == S_IDLE) {
       state = S_TURN_OFF;
     } else if (state == S_OFF) {
       state = S_TURN_ON;
