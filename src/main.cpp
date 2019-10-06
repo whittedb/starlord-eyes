@@ -7,11 +7,11 @@
 constexpr auto LED_CNT = 24;
 constexpr auto DRIVER_PIN = 4;
 constexpr auto ON_OFF_PIN = 2;
-constexpr auto FADE_ON_DELAY = 10;
+constexpr auto FADE_ON_DELAY = 75;
 constexpr auto FADE_ON_STEP = 1;
-constexpr auto FADE_OFF_DELAY = 20;
-constexpr auto FADE_OFF_STEP = 3;
-constexpr auto MAX_BRIGHTNESS = 200;
+constexpr auto FADE_OFF_DELAY = 50;
+constexpr auto FADE_OFF_STEP = 1;
+constexpr auto MAX_BRIGHTNESS = 10;
 
 enum State
 {
@@ -40,6 +40,10 @@ void setup()
   delay(2000); // Wait for NeoPixel Ring to initialize
 
   FastLED.addLeds<NEOPIXEL, DRIVER_PIN>(leds, LED_CNT);
+  for (int i = 0; i < LED_CNT; ++i) {
+    leds[i].setRGB(0, 0, 0);
+  }
+  FastLED.show();
   for (int i = 0; i < LED_CNT; ++i) {
     leds[i].setRGB(255, 0, 0);
   }
