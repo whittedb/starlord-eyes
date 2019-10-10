@@ -11,13 +11,20 @@ constexpr auto FADE_ON_DELAY = 75;
 constexpr auto FADE_ON_STEP = 1;
 constexpr auto FADE_OFF_DELAY = 50;
 constexpr auto FADE_OFF_STEP = 1;
-constexpr auto MAX_BRIGHTNESS = 10;
+constexpr auto MAX_BRIGHTNESS = 30;
+constexpr auto ON1_BRIGHTNESS = 5;
+constexpr auto ON2_BRIGHTNESS = 15;
+constexpr auto ON3_BRIGHTNESS = 255;
 
 enum State
 {
   S_OFF,
-  S_ON,
-  S_TURN_ON,
+  S_ON1,
+  S_ON2,
+  S_ON3,
+  S_TURN_ON1,
+  S_TURN_ON2,
+  S_TURN_ON3,
   S_TURN_OFF,
   S_FADE_ON,
   S_WAIT_FADE_ON,
@@ -26,9 +33,11 @@ enum State
 };
 
 volatile State state = S_OFF;
+volatile State prevOnState = S_OFF;
 //Adafruit_NeoPixel eyes(LED_CNT, DRIVER_PIN, NEO_GRBW);
 CRGB leds[LED_CNT];
 int16_t currentBrightness = 0;
+int16_t maxBrightness = 0;
 MyTimer timer = MyTimer();
 
 void debounceButton();
@@ -57,16 +66,27 @@ void loop() {
   switch (s)
   {
     case S_OFF:
-    case S_ON:
+    case S_ON1:
+    case S_ON2:
+    case S_ON3:
       break;
 
-    case S_TURN_ON:
-      currentBrightness = 0;
+    case S_TURN_ON1:
+      maxBrightness = ON1_BRIGHTNESS;
+      ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_FADE_ON; }
+      break;
+
+    case S_TURN_ON2:
+      maxBrightness = ON2_BRIGHTNESS;
+      ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_FADE_ON; }
+      break;
+
+    case S_TURN_ON3:
+      maxBrightness = MAX_BRIGHTNESS;
       ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_FADE_ON; }
       break;
 
     case S_TURN_OFF:
-      currentBrightness = MAX_BRIGHTNESS;
       ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_FADE_OFF; }
       break;
 
@@ -78,14 +98,22 @@ void loop() {
 
     case S_WAIT_FADE_ON:
       if (timer.expired()) {
-        if (currentBrightness < MAX_BRIGHTNESS) {
+        if (currentBrightness < maxBrightness) {
           currentBrightness += FADE_ON_STEP;
-          if (currentBrightness > MAX_BRIGHTNESS) {
-            currentBrightness = MAX_BRIGHTNESS;
+          if (currentBrightness > maxBrightness) {
+            currentBrightness = maxBrightness;
           }
           ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_FADE_ON; }
         } else {
-          ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { state = S_ON; }
+          ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+            if (prevOnState == S_OFF) {
+              state = S_ON1;
+            } else if (prevOnState == S_ON1) {
+              state = S_ON2;
+            } else if (prevOnState == S_ON2) {
+              state = S_ON3;
+            }
+          }
         }
       }
       break;
@@ -121,12 +149,29 @@ void debounceButton()
   unsigned long interrupt_time = millis();
   // If interrupts come faster than 200ms, assume it's a bounce and ignore
   if (interrupt_time - last_interrupt_time > 200) {
-    if (state == S_ON) {
+    if (state == S_ON1) {
+      prevOnState = state;
+      state = S_TURN_ON2;
+    } else if (state == S_ON2) {
+      prevOnState = state;
+      state = S_TURN_ON3;
+    } else if (state == S_ON3) {
+      prevOnState = state;
       state = S_TURN_OFF;
     } else if (state == S_OFF) {
-      state = S_TURN_ON;
+      prevOnState = state;
+      state = S_TURN_ON1;
     } else if (state == S_FADE_ON || state == S_WAIT_FADE_ON) {
-      state = S_FADE_OFF;
+      if (prevOnState == S_OFF) {
+        prevOnState = S_ON1;
+        state = S_TURN_ON2;
+      } else if (prevOnState == S_ON1) {
+        prevOnState = S_ON2;
+        state = S_TURN_ON3;
+      } else if (prevOnState == S_ON2) {
+        prevOnState = S_ON3;
+        state = S_TURN_OFF;
+      }
     } else if (state == S_FADE_OFF || state == S_WAIT_FADE_OFF) {
       state = S_FADE_ON;
     }
